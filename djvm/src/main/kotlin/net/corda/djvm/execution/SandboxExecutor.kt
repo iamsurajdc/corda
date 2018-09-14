@@ -32,12 +32,12 @@ open class SandboxExecutor<in TInput, out TOutput>(
     private val whitelist = configuration.analysisConfiguration.whitelist
 
     /**
-     * Module used to validate all traversable references before instantiating and executing a [SandboxedRunnable].
+     * Module used to validate all traversable references before instantiating and executing a [java.util.function.Function].
      */
     private val referenceValidator = ReferenceValidator(configuration.analysisConfiguration)
 
     /**
-     * Executes a [SandboxedRunnable] implementation.
+     * Executes a [java.util.function.Function] implementation.
      *
      * @param runnableClass The entry point of the sandboxed code to run.
      * @param input The input to provide to the sandboxed environment.
@@ -50,7 +50,7 @@ open class SandboxExecutor<in TInput, out TOutput>(
     open fun run(
             runnableClass: ClassSource,
             input: TInput
-    ): ExecutionSummaryWithResult<TOutput?> {
+    ): ExecutionSummaryWithResult<TOutput> {
         // 1. We first do a breath first traversal of the class hierarchy, starting from the requested class.
         //    The branching is defined by class references from referencesFromLocation.
         // 2. For each class we run validation against defined rules.
@@ -63,7 +63,7 @@ open class SandboxExecutor<in TInput, out TOutput>(
         // 6. For execution, we then load the top-level class, implementing the SandboxedRunnable interface, again and
         //    and consequently hit the cache. Once loaded, we can execute the code on the spawned thread, i.e., in an
         //    isolated environment.
-        logger.trace("Executing {} with input {}...", runnableClass, input)
+        logger.debug("Executing {} with input {}...", runnableClass, input)
         // TODO Class sources can be analyzed in parallel, although this require making the analysis context thread-safe
         // To do so, one could start by batching the first X classes from the class sources and analyse each one in
         // parallel, caching any intermediate state and subsequently process enqueued sources in parallel batches as well.
@@ -75,10 +75,10 @@ open class SandboxExecutor<in TInput, out TOutput>(
             validate(context, classLoader, classSources)
             val loadedClass = classLoader.loadClassAndBytes(runnableClass, context)
             val instance = loadedClass.type.newInstance()
-            val method = loadedClass.type.getMethod("run", Any::class.java)
+            val method = loadedClass.type.getMethod("apply", Any::class.java)
             try {
                 @Suppress("UNCHECKED_CAST")
-                method.invoke(instance, input) as? TOutput?
+                method.invoke(instance, input) as? TOutput
             } catch (ex: InvocationTargetException) {
                 throw ex.targetException
             }
@@ -185,7 +185,7 @@ open class SandboxExecutor<in TInput, out TOutput>(
     private inline fun processClassQueue(
             vararg elements: ClassSource, action: QueueProcessor<ClassSource>.(ClassSource, String) -> Unit
     ) {
-        QueueProcessor({ it.qualifiedClassName }, *elements).process { classSource ->
+        QueueProcessor(ClassSource::qualifiedClassName, *elements).process { classSource ->
             val className = classResolver.reverse(classModule.getBinaryClassName(classSource.qualifiedClassName))
             if (!whitelist.matches(className)) {
                 action(classSource, className)

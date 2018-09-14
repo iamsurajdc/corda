@@ -29,6 +29,8 @@ class DisallowCatchingBlacklistedExceptions : InstructionRule(), Emitter {
                     (instruction.typeName == outOfMemoryException)
             fail("Disallowed catch of threshold violation exception") given
                     (instruction.typeName.endsWith(ThresholdViolationException::class.java.simpleName))
+            fail("Disallowed catch of rule violation exception") given
+                    (instruction.typeName == ruleViolationException)
         }
     }
 
@@ -50,6 +52,7 @@ class DisallowCatchingBlacklistedExceptions : InstructionRule(), Emitter {
         private const val threadDeathException = "java/lang/ThreadDeath"
         private const val stackOverflowException = "java/lang/StackOverflowError"
         private const val outOfMemoryException = "java/lang/OutOfMemoryError"
+        private const val ruleViolationException = "sandbox/net/corda/djvm/rules/RuleViolationException"
 
         // Any of [ThreadDeath]'s throwable super-classes need explicit checking.
         private val disallowedExceptionTypes = setOf(

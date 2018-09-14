@@ -16,10 +16,13 @@ import net.corda.djvm.rules.Rule
 import net.corda.djvm.source.ClassSource
 import net.corda.djvm.utilities.Discovery
 import net.corda.djvm.validation.RuleValidator
+import org.junit.Assert.assertEquals
 import org.objectweb.asm.ClassReader
-import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Type
 import java.lang.reflect.InvocationTargetException
+import java.nio.file.Path
+import java.nio.file.Paths
 
 abstract class TestBase {
 
@@ -34,7 +37,10 @@ abstract class TestBase {
         val BLANK = emptySet<Any>()
 
         val DEFAULT = (ALL_RULES + ALL_EMITTERS + ALL_DEFINITION_PROVIDERS)
-                .toSet().distinctBy { it.javaClass }
+                .toSet().distinctBy(Any::javaClass)
+
+        val DETERMINISTIC_RT: Path = Paths.get(
+                System.getProperty("deterministic-rt.path") ?: throw AssertionError("deterministic-rt.path property not set"))
 
         /**
          * Get the full name of type [T].
@@ -46,7 +52,7 @@ abstract class TestBase {
     /**
      * Default analysis configuration.
      */
-    val configuration = AnalysisConfiguration(Whitelist.MINIMAL)
+    val configuration = AnalysisConfiguration(Whitelist.MINIMAL, classPath = listOf(DETERMINISTIC_RT))
 
     /**
      * Default analysis context
@@ -62,7 +68,10 @@ abstract class TestBase {
             noinline block: (RuleValidator.(AnalysisContext) -> Unit)
     ) {
         val reader = ClassReader(T::class.java.name)
-        val configuration = AnalysisConfiguration(minimumSeverityLevel = minimumSeverityLevel)
+        val configuration = AnalysisConfiguration(
+            minimumSeverityLevel = minimumSeverityLevel,
+            classPath = listOf(DETERMINISTIC_RT)
+        )
         val validator = RuleValidator(ALL_RULES, configuration)
         val context = AnalysisContext.fromConfiguration(
                 configuration,
@@ -118,6 +127,7 @@ abstract class TestBase {
                 val pinnedTestClasses = pinnedClasses.map(Type::getInternalName).toSet()
                 val analysisConfiguration = AnalysisConfiguration(
                         whitelist = whitelist,
+                        classPath = listOf(DETERMINISTIC_RT),
                         additionalPinnedClasses = pinnedTestClasses,
                         minimumSeverityLevel = minimumSeverityLevel
                 )
@@ -164,6 +174,10 @@ abstract class TestBase {
     /**
      * Stub visitor.
      */
-    protected class Visitor : ClassVisitor(ClassAndMemberVisitor.API_VERSION)
+    protected class Writer : ClassWriter(COMPUTE_FRAMES or COMPUTE_MAXS) {
+        init {
+            assertEquals(ClassAndMemberVisitor.API_VERSION, api)
+        }
+    }
 
 }

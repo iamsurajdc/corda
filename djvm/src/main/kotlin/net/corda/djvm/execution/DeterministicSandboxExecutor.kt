@@ -2,6 +2,7 @@ package net.corda.djvm.execution
 
 import net.corda.djvm.SandboxConfiguration
 import net.corda.djvm.source.ClassSource
+import java.util.function.Function
 
 /**
  * The executor is responsible for spinning up a deterministic, sandboxed environment and launching the referenced code
@@ -16,10 +17,10 @@ class DeterministicSandboxExecutor<TInput, TOutput>(
 ) : SandboxExecutor<TInput, TOutput>(configuration) {
 
     /**
-     * Short-hand for running a [SandboxedRunnable] in a sandbox by its type reference.
+     * Short-hand for running a [Function] in a sandbox by its type reference.
      */
-    inline fun <reified TRunnable : SandboxedRunnable<TInput, TOutput>> run(input: TInput):
-            ExecutionSummaryWithResult<TOutput?> {
+    inline fun <reified TRunnable : Function<in TInput, out TOutput>> run(input: TInput):
+            ExecutionSummaryWithResult<TOutput> {
         return run(ClassSource.fromClassName(TRunnable::class.java.name), input)
     }
 

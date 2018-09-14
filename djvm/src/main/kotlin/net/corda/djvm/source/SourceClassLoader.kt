@@ -22,13 +22,11 @@ import kotlin.streams.toList
  *
  * @param paths The directories and explicit JAR files to scan.
  * @property classResolver The resolver to use to derive the original name of a requested class.
- * @property resolvedUrls The resolved URLs that get passed to the underlying class loader.
  */
 open class SourceClassLoader(
-        paths: List<Path>,
-        private val classResolver: ClassResolver,
-        val resolvedUrls: Array<URL> = resolvePaths(paths)
-) : URLClassLoader(resolvedUrls, SourceClassLoader::class.java.classLoader) {
+    paths: List<Path>,
+    private val classResolver: ClassResolver
+) : URLClassLoader(resolvePaths(paths), SourceClassLoader::class.java.classLoader) {
 
     /**
      * Open a [ClassReader] for the provided class name.
@@ -51,6 +49,14 @@ open class SourceClassLoader(
             logger.error("Failed to open ClassReader for class", exception)
             throw SandboxClassLoadingException(context)
         }
+    }
+
+    /**
+     * Search our own jars for the given resource, delegating
+     * to our parent's classloader if we don't have it.
+     */
+    override fun getResource(name: String): URL? {
+        return findResource(name) ?: parent?.getResource(name)
     }
 
     /**
@@ -80,7 +86,7 @@ open class SourceClassLoader(
                 when {
                     !Files.exists(it) -> throw FileNotFoundException("File not found; $it")
                     Files.isDirectory(it) -> {
-                        listOf(it.toURL()) + Files.list(it).filter(::isJarFile).map { it.toURL() }.toList()
+                        listOf(it.toURL()) + Files.list(it).filter(::isJarFile).map { jar -> jar.toURL() }.toList()
                     }
                     Files.isReadable(it) && isJarFile(it) -> listOf(it.toURL())
                     else -> throw IllegalArgumentException("Expected JAR or class file, but found $it")

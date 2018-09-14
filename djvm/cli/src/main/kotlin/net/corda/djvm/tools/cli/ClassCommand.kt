@@ -114,7 +114,7 @@ abstract class ClassCommand : CommandBase() {
     }
 
     private fun findDiscoverableRunnables(filters: Array<String>): List<Class<*>> {
-        val classes = find<DiscoverableRunnable>()
+        val classes = find<java.util.function.Function<*,*>>()
         val applicableFilters = filters
                 .filter { !isJarFile(it) && !isFullClassName(it) }
         val filteredClasses = applicableFilters
@@ -125,7 +125,7 @@ abstract class ClassCommand : CommandBase() {
                 }
 
         if (applicableFilters.isNotEmpty() && filteredClasses.isEmpty()) {
-            throw Exception("Could not find any classes implementing ${SandboxedRunnable::class.java.simpleName} " +
+            throw Exception("Could not find any classes implementing ${java.util.function.Function::class.java.simpleName} " +
                     "whose name matches '${applicableFilters.joinToString(" ")}'")
         }
 

@@ -37,7 +37,7 @@ class IsolatedTask(
                     action(runnable)
                 } catch (ex: Throwable) {
                     logger.error("Exception caught in isolated runtime environment", ex)
-                    exception = ex
+                    exception = (ex as? LinkageError)?.cause ?: ex
                     null
                 }
                 costs = CostSummary(
@@ -84,7 +84,7 @@ class IsolatedTask(
     )
 
     /**
-     * The class loader to use for loading the [SandboxedRunnable] and any referenced code in [SandboxExecutor.run].
+     * The class loader to use for loading the [java.util.function.Function] and any referenced code in [SandboxExecutor.run].
      */
     val classLoader: SandboxClassLoader
         get() = SandboxRuntimeContext.instance.classLoader

@@ -83,7 +83,7 @@ class SandboxClassLoader(
      * @return The resulting <tt>Class</tt> object and its byte code representation.
      */
     fun loadClassAndBytes(source: ClassSource, context: AnalysisContext): LoadedClass {
-        logger.trace("Loading class {}, origin={}...", source.qualifiedClassName, source.origin)
+        logger.debug("Loading class {}, origin={}...", source.qualifiedClassName, source.origin)
         val name = configuration.analysisConfiguration.classResolver.reverseNormalized(source.qualifiedClassName)
         val resolvedName = configuration.analysisConfiguration.classResolver.resolveNormalized(name)
 

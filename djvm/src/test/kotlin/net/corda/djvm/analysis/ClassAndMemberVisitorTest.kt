@@ -118,9 +118,21 @@ class ClassAndMemberVisitorTest : TestBase() {
     private class TestClassWithAnnotations
 
     @Test
-    fun `can traverse member annotations`() {
+    fun `cannot traverse member annotations when reading`() {
         val annotations = mutableSetOf<String>()
         val visitor = object : ClassAndMemberVisitor() {
+            override fun visitMemberAnnotation(clazz: ClassRepresentation, member: Member, descriptor: String) {
+                annotations.add("${member.memberName}:$descriptor")
+            }
+        }
+        visitor.analyze<TestClassWithMemberAnnotations>(context)
+        assertThat(annotations).isEmpty()
+    }
+
+    @Test
+    fun `can traverse member annotations when writing`() {
+        val annotations = mutableSetOf<String>()
+        val visitor = object : ClassAndMemberVisitor(Writer()) {
             override fun visitMemberAnnotation(clazz: ClassRepresentation, member: Member, descriptor: String) {
                 annotations.add("${member.memberName}:$descriptor")
             }
@@ -160,9 +172,21 @@ class ClassAndMemberVisitorTest : TestBase() {
     }
 
     @Test
-    fun `can traverse instructions`() {
+    fun `does not traverse instructions when reading`() {
         val instructions = mutableSetOf<Pair<Member, Instruction>>()
         val visitor = object : ClassAndMemberVisitor() {
+            override fun visitInstruction(method: Member, emitter: EmitterModule, instruction: Instruction) {
+                instructions.add(Pair(method, instruction))
+            }
+        }
+        visitor.analyze<TestClassWithCode>(context)
+        assertThat(instructions).isEmpty()
+    }
+
+    @Test
+    fun `can traverse instructions when writing`() {
+        val instructions = mutableSetOf<Pair<Member, Instruction>>()
+        val visitor = object : ClassAndMemberVisitor(Writer()) {
             override fun visitInstruction(method: Member, emitter: EmitterModule, instruction: Instruction) {
                 instructions.add(Pair(method, instruction))
             }

@@ -2,6 +2,8 @@ package net.corda.djvm.code
 
 import net.corda.djvm.analysis.AnalysisRuntimeContext
 import net.corda.djvm.references.Member
+import org.objectweb.asm.Type
+import sandbox.net.corda.djvm.rules.RuleViolationException
 
 /**
  * A member definition provider is a hook for [ClassMutator], from where one can modify the name and meta-data of
@@ -20,3 +22,5 @@ interface MemberDefinitionProvider : DefinitionProvider {
     fun define(context: AnalysisRuntimeContext, member: Member): Member
 
 }
+
+val violationException: String = Type.getInternalName(RuleViolationException::class.java)

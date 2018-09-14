@@ -3,7 +3,9 @@ package net.corda.djvm.analysis
 import net.corda.djvm.messages.Severity
 import net.corda.djvm.references.ClassModule
 import net.corda.djvm.references.MemberModule
+import org.objectweb.asm.Type
 import sandbox.net.corda.djvm.costing.RuntimeCostAccounter
+import sandbox.net.corda.djvm.rules.RuleViolationException
 import java.nio.file.Path
 
 /**
@@ -35,7 +37,11 @@ class AnalysisConfiguration(
      * Classes that have already been declared in the sandbox namespace and that should be made
      * available inside the sandboxed environment.
      */
-    val pinnedClasses: Set<String> = setOf(SANDBOXED_OBJECT, RUNTIME_COST_ACCOUNTER) + additionalPinnedClasses
+    val pinnedClasses: Set<String> = setOf(
+        SANDBOXED_OBJECT,
+        RUNTIME_COST_ACCOUNTER,
+        Type.getInternalName(RuleViolationException::class.java)
+    ) + additionalPinnedClasses
 
     /**
      * Functionality used to resolve the qualified name and relevant information about a class.

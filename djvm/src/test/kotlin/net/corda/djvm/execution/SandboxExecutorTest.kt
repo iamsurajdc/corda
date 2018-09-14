@@ -11,8 +11,10 @@ import net.corda.djvm.rewiring.SandboxClassLoadingException
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.junit.Test
+import sandbox.net.corda.djvm.rules.RuleViolationException
 import java.nio.file.Files
 import java.util.*
+import java.util.function.Function
 
 class SandboxExecutorTest : TestBase() {
 
@@ -24,8 +26,8 @@ class SandboxExecutorTest : TestBase() {
         assertThat(result).isEqualTo("sandbox")
     }
 
-    class TestSandboxedRunnable : SandboxedRunnable<Int, String> {
-        override fun run(input: Int): String? {
+    class TestSandboxedRunnable : Function<Int, String> {
+        override fun apply(input: Int): String {
             return "sandbox"
         }
     }
@@ -42,8 +44,8 @@ class SandboxExecutorTest : TestBase() {
                 .withMessageContaining("Contract constraint violated")
     }
 
-    class Contract : SandboxedRunnable<Transaction?, Unit> {
-        override fun run(input: Transaction?) {
+    class Contract : Function<Transaction?, Unit> {
+        override fun apply(input: Transaction?) {
             throw IllegalArgumentException("Contract constraint violated")
         }
     }
@@ -58,8 +60,8 @@ class SandboxExecutorTest : TestBase() {
         assertThat(result).isEqualTo(0xfed_c0de + 2)
     }
 
-    class TestObjectHashCode : SandboxedRunnable<Int, Int> {
-        override fun run(input: Int): Int? {
+    class TestObjectHashCode : Function<Int, Int> {
+        override fun apply(input: Int): Int {
             val obj = Object()
             val hash1 = obj.hashCode()
             val hash2 = obj.hashCode()
@@ -76,8 +78,8 @@ class SandboxExecutorTest : TestBase() {
         assertThat(result).isEqualTo(0xfed_c0de + 1)
     }
 
-    class TestObjectHashCodeWithHierarchy : SandboxedRunnable<Int, Int> {
-        override fun run(input: Int): Int? {
+    class TestObjectHashCodeWithHierarchy : Function<Int, Int> {
+        override fun apply(input: Int): Int {
             val obj = MyObject()
             return obj.hashCode()
         }
@@ -91,9 +93,9 @@ class SandboxExecutorTest : TestBase() {
                 .withMessageContaining("terminated due to excessive use of looping")
     }
 
-    class TestThresholdBreach : SandboxedRunnable<Int, Int> {
+    class TestThresholdBreach : Function<Int, Int> {
         private var x = 0
-        override fun run(input: Int): Int? {
+        override fun apply(input: Int): Int {
             for (i in 0..1_000_000) {
                 x += 1
             }
@@ -109,8 +111,8 @@ class SandboxExecutorTest : TestBase() {
                 .withCauseInstanceOf(StackOverflowError::class.java)
     }
 
-    class TestStackOverflow : SandboxedRunnable<Int, Int> {
-        override fun run(input: Int): Int? {
+    class TestStackOverflow : Function<Int, Int> {
+        override fun apply(input: Int): Int {
             return a()
         }
 
@@ -124,11 +126,12 @@ class SandboxExecutorTest : TestBase() {
         val contractExecutor = DeterministicSandboxExecutor<Int, Int>(configuration)
         assertThatExceptionOfType(SandboxException::class.java)
                 .isThrownBy { contractExecutor.run<TestKotlinMetaClasses>(0) }
-                .withMessageContaining("java/util/Random.<clinit>(): Disallowed reference to reflection API; sun.misc.Unsafe.getUnsafe()")
+                .withCauseInstanceOf(RuleViolationException::class.java)
+                .withMessageContaining("Disallowed reference to reflection API")
     }
 
-    class TestKotlinMetaClasses : SandboxedRunnable<Int, Int> {
-        override fun run(input: Int): Int? {
+    class TestKotlinMetaClasses : Function<Int, Int> {
+        override fun apply(input: Int): Int {
             val someNumber = testRandom()
             return "12345".toNumber() * someNumber
         }
@@ -139,12 +142,12 @@ class SandboxExecutorTest : TestBase() {
         val contractExecutor = DeterministicSandboxExecutor<Int, Int>(configuration)
         assertThatExceptionOfType(SandboxException::class.java)
                 .isThrownBy { contractExecutor.run<TestNonDeterministicCode>(0) }
-                .withCauseInstanceOf(SandboxClassLoadingException::class.java)
-                .withProblem("java/util/Random.<clinit>(): Disallowed reference to reflection API; sun.misc.Unsafe.getUnsafe()")
+                .withCauseInstanceOf(RuleViolationException::class.java)
+                .withProblem("Disallowed reference to reflection API")
     }
 
-    class TestNonDeterministicCode : SandboxedRunnable<Int, Int> {
-        override fun run(input: Int): Int? {
+    class TestNonDeterministicCode : Function<Int, Int> {
+        override fun apply(input: Int): Int {
             return Random().nextInt()
         }
     }
@@ -159,8 +162,8 @@ class SandboxExecutorTest : TestBase() {
                 .withMessageContaining(TestCatchThreadDeath::class.java.simpleName)
     }
 
-    class TestCatchThreadDeath : SandboxedRunnable<Int, Int> {
-        override fun run(input: Int): Int? {
+    class TestCatchThreadDeath : Function<Int, Int> {
+        override fun apply(input: Int): Int {
             return try {
                 0
             } catch (exception: ThreadDeath) {
@@ -179,8 +182,8 @@ class SandboxExecutorTest : TestBase() {
                 .withMessageContaining(TestCatchThresholdViolationException::class.java.simpleName)
     }
 
-    class TestCatchThresholdViolationException : SandboxedRunnable<Int, Int> {
-        override fun run(input: Int): Int? {
+    class TestCatchThresholdViolationException : Function<Int, Int> {
+        override fun apply(input: Int): Int {
             return try {
                 0
             } catch (exception: ThresholdViolationException) {
@@ -213,8 +216,8 @@ class SandboxExecutorTest : TestBase() {
                 .withCauseInstanceOf(ThreadDeath::class.java)
     }
 
-    class TestCatchThrowableAndError : SandboxedRunnable<Int, Int> {
-        override fun run(input: Int): Int? {
+    class TestCatchThrowableAndError : Function<Int, Int> {
+        override fun apply(input: Int): Int {
             return try {
                 when (input) {
                     1 -> throw Throwable()
@@ -229,8 +232,8 @@ class SandboxExecutorTest : TestBase() {
         }
     }
 
-    class TestCatchThrowableErrorAndThreadDeath : SandboxedRunnable<Int, Int> {
-        override fun run(input: Int): Int? {
+    class TestCatchThrowableErrorAndThreadDeath : Function<Int, Int> {
+        override fun apply(input: Int): Int {
             return try {
                 when (input) {
                     1 -> throw Throwable()
@@ -256,8 +259,8 @@ class SandboxExecutorTest : TestBase() {
                 .isEqualTo(1)
     }
 
-    class TestStatePersistence : SandboxedRunnable<Int, Int> {
-        override fun run(input: Int): Int? {
+    class TestStatePersistence : Function<Int, Int> {
+        override fun apply(input: Int): Int {
             ReferencedClass.value += 1
             return ReferencedClass.value
         }
@@ -273,12 +276,12 @@ class SandboxExecutorTest : TestBase() {
         val contractExecutor = DeterministicSandboxExecutor<Int, Int>(configuration)
         assertThatExceptionOfType(SandboxException::class.java)
                 .isThrownBy { contractExecutor.run<TestIO>(0) }
-                .withCauseInstanceOf(SandboxClassLoadingException::class.java)
-                .withMessageContaining("Files.walk(Path, Integer, FileVisitOption[]): Disallowed dynamic invocation in method")
+                .withCauseInstanceOf(RuleViolationException::class.java)
+                .withMessageContaining("Native method has been deleted")
     }
 
-    class TestIO : SandboxedRunnable<Int, Int> {
-        override fun run(input: Int): Int? {
+    class TestIO : Function<Int, Int> {
+        override fun apply(input: Int): Int {
             val file = Files.createTempFile("test", ".dat")
             Files.newBufferedWriter(file).use {
                 it.write("Hello world!")
@@ -292,14 +295,13 @@ class SandboxExecutorTest : TestBase() {
         val contractExecutor = DeterministicSandboxExecutor<Int, Int>(configuration)
         assertThatExceptionOfType(SandboxException::class.java)
                 .isThrownBy { contractExecutor.run<TestReflection>(0) }
-                .withCauseInstanceOf(SandboxClassLoadingException::class.java)
+                .withCauseInstanceOf(RuleViolationException::class.java)
                 .withMessageContaining("Disallowed reference to reflection API")
                 .withMessageContaining("java.lang.Class.newInstance()")
-                .withMessageContaining("java.lang.reflect.Method.invoke(Object, Object[])")
     }
 
-    class TestReflection : SandboxedRunnable<Int, Int> {
-        override fun run(input: Int): Int? {
+    class TestReflection : Function<Int, Int> {
+        override fun apply(input: Int): Int {
             val clazz = Object::class.java
             val obj = clazz.newInstance()
             val result = clazz.methods.first().invoke(obj)
@@ -307,4 +309,61 @@ class SandboxExecutorTest : TestBase() {
         }
     }
 
+    @Test
+    fun `can load and execute code that has a native method`() = sandbox(DEFAULT) {
+        assertThatExceptionOfType(UnsatisfiedLinkError::class.java)
+            .isThrownBy { TestNativeMethod().apply(0) }
+            .withMessageContaining("TestNativeMethod.evilDeeds()I")
+
+        val contractExecutor = DeterministicSandboxExecutor<Int, Int>(configuration)
+        assertThatExceptionOfType(SandboxException::class.java)
+            .isThrownBy { contractExecutor.run<TestNativeMethod>(0) }
+            .withCauseInstanceOf(RuleViolationException::class.java)
+            .withMessageContaining("Native method has been deleted")
+    }
+
+    class TestNativeMethod : Function<Int, Int> {
+        override fun apply(input: Int): Int {
+            return evilDeeds()
+        }
+
+        private external fun evilDeeds(): Int
+    }
+
+    @Test
+    fun `arrays still work`() = sandbox(DEFAULT) {
+        val contractExecutor = DeterministicSandboxExecutor<Int, Array<Int>>(configuration)
+        contractExecutor.run<TestArray>(100).apply {
+            assertThat(result).isEqualTo(arrayOf(100))
+        }
+    }
+
+    class TestArray : Function<Int, Array<Int>> {
+        override fun apply(input: Int): Array<Int> {
+            return listOf(input).toTypedArray()
+        }
+    }
+
+    @Test
+    fun `can load and execute class that has finalize`() = sandbox(DEFAULT) {
+        assertThatExceptionOfType(UnsupportedOperationException::class.java)
+            .isThrownBy { TestFinalizeMethod().apply(100) }
+            .withMessageContaining("Very Bad Thing")
+
+        val contractExecutor = DeterministicSandboxExecutor<Int, Int>(configuration)
+        contractExecutor.run<TestFinalizeMethod>(100).apply {
+            assertThat(result).isEqualTo(100)
+        }
+    }
+
+    class TestFinalizeMethod : Function<Int, Int> {
+        override fun apply(input: Int): Int {
+            finalize()
+            return input
+        }
+
+        fun finalize() {
+            throw UnsupportedOperationException("Very Bad Thing")
+        }
+    }
 }
