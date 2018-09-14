@@ -27,7 +27,6 @@ import net.corda.nodeapi.internal.persistence.CordaPersistence
 import net.corda.nodeapi.internal.persistence.DatabaseTransaction
 import net.corda.nodeapi.internal.persistence.contextTransaction
 import net.corda.nodeapi.internal.persistence.contextTransactionOrNull
-import net.corda.nodeapi.internal.tracing.CordaTracer
 import net.corda.nodeapi.internal.tracing.CordaTracer.Companion.error
 import org.apache.activemq.artemis.utils.ReusableLatch
 import org.slf4j.Logger
@@ -209,7 +208,7 @@ class FlowStateMachineImpl<R>(override val id: StateMachineRunId,
     override fun run() {
         logic.stateMachine = this
 
-        CordaTracer.current.flowSpan { span, _ ->
+        serviceHub.monitoringService.tracer.flowSpan { span, _ ->
             span.setTag("our-identity", ourIdentity.toString())
         }
 
@@ -233,7 +232,7 @@ class FlowStateMachineImpl<R>(override val id: StateMachineRunId,
                 Event.FlowFinish(resultOrError.value, softLocksId)
             }
             is Try.Failure -> {
-                CordaTracer.current.flowSpan { span, _ ->
+                serviceHub.monitoringService.tracer.flowSpan { span, _ ->
                     span.error(resultOrError.exception.message ?: "Flow failed", resultOrError.exception)
                 }
                 Event.Error(resultOrError.exception)
@@ -258,7 +257,7 @@ class FlowStateMachineImpl<R>(override val id: StateMachineRunId,
         getTransientField(TransientValues::unfinishedFibers).countDown()
 
         // TODO end of flow (see ErrorFlowTransition.kt) - handle abortions
-        CordaTracer.current.endFlow()
+        serviceHub.monitoringService.tracer.endFlow()
     }
 
     @Suspendable
@@ -319,7 +318,7 @@ class FlowStateMachineImpl<R>(override val id: StateMachineRunId,
 
     @Suspendable
     private fun abortFiber(): Nothing {
-        CordaTracer.current.flowSpan { span, _ ->
+        serviceHub.monitoringService.tracer.flowSpan { span, _ ->
             span.error("Aborted")
         }
         while (true) {

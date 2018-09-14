@@ -161,7 +161,8 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
     val vaultService = makeVaultService(keyManagementService, servicesForResolution, database).tokenize()
     val nodeProperties = NodePropertiesPersistentStore(StubbedNodeUniqueIdProvider::value, database)
     val flowLogicRefFactory = FlowLogicRefFactoryImpl(cordappLoader.appClassLoader)
-    val monitoringService = MonitoringService(metricRegistry).tokenize()
+    private val tracer = CordaTracer.current
+    val monitoringService = MonitoringService(metricRegistry, tracer).tokenize()
     val networkMapUpdater = NetworkMapUpdater(
             networkMapCache,
             NodeInfoWatcher(

@@ -4,6 +4,7 @@ import co.paralleluniverse.strands.Strand
 import io.jaegertracing.Configuration
 import io.jaegertracing.Configuration.*
 import io.jaegertracing.internal.samplers.ConstSampler
+import io.opentracing.Scope
 import io.opentracing.Span
 import io.opentracing.Tracer
 import io.opentracing.log.Fields
@@ -138,8 +139,12 @@ class CordaTracer private constructor(private val tracer: Tracer) {
 
         var rootSpan: Span? = null
 
-        private fun createRootSpan(): Span? {
-            rootSpan = getTracer("Network").tracer.buildSpan("Execution").start()
+        private fun createRootSpanIfNeeded(): Span? {
+            if (rootSpan != null) {
+                return rootSpan
+            }
+            rootSpan = current.tracer.buildSpan("Execution").start()
+            current.tracer.scopeManager().activate(rootSpan, true)
             return rootSpan
         }
 
@@ -149,35 +154,39 @@ class CordaTracer private constructor(private val tracer: Tracer) {
 
     }
 
-    private var flowSpans: ConcurrentHashMap<String, Span> = ConcurrentHashMap()
+    private var flowSpans: ConcurrentHashMap<String, Pair<Span, Scope>> = ConcurrentHashMap()
 
     fun <T> flowSpan(action: (Span, FlowStateMachine<*>) -> T): T? {
         return flow?.let { flow ->
-            val span = flowSpans.getOrPut(flow.flowId) {
-                tracer.buildSpan(flow.logic.toString()).apply {
-                    (rootSpan ?: createRootSpan())?.apply { asChildOf(this) }
+            val (span, _) = flowSpans.getOrPut(flow.flowId) {
+                val tracer = tracer
+                val span = tracer.buildSpan(flow.logic.toString()).apply {
+                    createRootSpanIfNeeded()
+                    withTag("parent-context", rootSpan!!.context().toString())
                     decorate()
-
                 }.start()
+                val scope = tracer.scopeManager().activate(span, true)
+                span to scope
             }
             action(span, flow)
         }
     }
 
-    fun span(name: String): Span? {
+    fun span(name: String): Pair<Span, Scope>? {
         return flowSpan { parentSpan, _ ->
-            tracer.buildSpan(name).apply {
-                asChildOf(parentSpan)
-                // TODO addReference(References.CHILD_OF, parentSpan.context())
-                withTag("parentContext", parentSpan.context().toString())
+            val tracer = tracer
+            val span = tracer.buildSpan(name).apply {
+                withTag("parent-context", parentSpan.context().toString())
                 decorate()
 
             }.start()
+            val scope = tracer.scopeManager().activate(span, false)
+            span?.let { it -> it to scope }
         }
     }
 
     fun <T> span(name: String, closeAutomatically: Boolean = true, block: (Span?) -> T): T {
-        return span(name)?.let { span ->
+        return span(name)?.let { (span, scope) ->
             try {
                 block(span)
             } catch (ex: Exception) {
@@ -192,14 +201,16 @@ class CordaTracer private constructor(private val tracer: Tracer) {
                 if (closeAutomatically) {
                     span.finish()
                 }
+                scope.close()
             }
         } ?: block(null)
     }
 
     fun endFlow() {
         flow?.id?.uuid.toString().let { flowId ->
-            val span = flowSpans.remove(flowId)
+            val (span, scope) = flowSpans.remove(flowId) ?: null to null
             span?.finish()
+            scope?.close()
         }
     }
 

@@ -158,7 +158,7 @@ class CordaPersistence(
                 outer.statement()
 //            }
         } else {
-            CordaTracer.current.span("Transaction", closeAutomatically = false) {
+            CordaTracer.current.span("Transaction", closeAutomatically = false) { // TODO
 //                it.tag("jdbc-url", contextDatabase.jdbcUrl)
                 inTopLevelTransaction(isolationLevel, recoverableFailureTolerance, recoverAnyNestedSQLException, statement, it)
             }

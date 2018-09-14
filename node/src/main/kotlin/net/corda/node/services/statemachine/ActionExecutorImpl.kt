@@ -14,7 +14,6 @@ import net.corda.node.services.api.ServiceHubInternal
 import net.corda.nodeapi.internal.persistence.contextDatabase
 import net.corda.nodeapi.internal.persistence.contextTransaction
 import net.corda.nodeapi.internal.persistence.contextTransactionOrNull
-import net.corda.nodeapi.internal.tracing.CordaTracer
 import net.corda.nodeapi.internal.tracing.CordaTracer.Companion.tag
 import java.time.Duration
 import java.time.Instant
@@ -56,7 +55,7 @@ class ActionExecutorImpl(
     override fun executeAction(fiber: FlowFiber, action: Action) {
         log.trace { "Flow ${fiber.id} executing $action" }
 
-        CordaTracer.current.span(action.javaClass.simpleName) {
+        services.monitoringService.tracer.span(action.javaClass.simpleName) {
             it.tag("action", action)
             // it.tag("email", services.configuration.emailAddress)
             when (action) {

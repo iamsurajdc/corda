@@ -1,5 +1,6 @@
 package net.corda.djvm.costing
 
+import net.corda.djvm.execution.SandboxedRunnable
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.junit.Test
@@ -27,5 +28,6 @@ class RuntimeCostTest {
             join()
         }
     }
+
 
 }
